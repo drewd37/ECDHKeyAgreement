@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.example.ecdhkeyagreement.crypto.CryptoManager;
 import com.example.ecdhkeyagreement.crypto.CryptoUtil;
+import com.example.ecdhkeyagreement.key.KeyGenerator;
 import com.example.ecdhkeyagreement.key.KeyManager;
 import com.example.ecdhkeyagreement.key.KeyUtil;
 
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.interfaces.ECPublicKey;
@@ -209,7 +211,7 @@ public class BluetoothManager {
 
 
     // thread for communication
-    private class CommunicationThread extends Thread {
+    public class CommunicationThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final InputStream mmInStream;
         private final OutputStream mmOutStream;
@@ -268,13 +270,12 @@ public class BluetoothManager {
             while (true) {
                 try {
                     // Read from the InputStream.
+                    int len = mmInStream.read(mmBuffer);
                     System.out.println("Server starting reading incoming data");
 
                     switch (currentState) {
                         case DHState.INITIAL:
-                            byte[] data = new byte[91];
-                            DataInputStream dis = new DataInputStream(mmInStream);
-                            dis.readFully(data);
+                            byte[] data = Arrays.copyOf(mmBuffer, len);
                             System.out.println(TAG + KeyUtil.byteArrayToHex(data));
 
                             if (role.equals("server")) {
@@ -314,34 +315,65 @@ public class BluetoothManager {
 
                         case DHState.KEY_GENERATED:
                             // receive file
-                            data = new byte[1024];
-                            int len = mmInStream.read(data);
-
-                            byte[] fileData = Arrays.copyOf(data, len);
-
+                            byte[] fileData = Arrays.copyOf(mmBuffer, len);
                             File file = new File(Environment.getExternalStorageDirectory() + "/Download/","Received_file");
                             FileOutputStream fos = new FileOutputStream(file);
 
                             // decrypt
-                            CryptoManager manager = new CryptoManager();
-                            byte[] decryptData = manager.decrpyt(fileData);
+                            byte[] decryptData = CryptoManager.getInstance().decrpyt(fileData);
 
                             // exclude nonce and digest
                             int finalDataLen = decryptData.length - 32 - 4;
                             byte[] digest = Arrays.copyOfRange(decryptData, decryptData.length - 32, decryptData.length);
                             byte[] dataAndNonce = Arrays.copyOfRange(decryptData, 0, decryptData.length - 32);
+                            byte[] nonce = Arrays.copyOfRange(decryptData, finalDataLen, decryptData.length - 32);
                             byte[] finalData = Arrays.copyOfRange(decryptData, 0, finalDataLen);
 
+                            // integrity check
                             byte[] calculatedDigest = CryptoUtil.sha256(dataAndNonce);
                             if (!Arrays.equals(digest, calculatedDigest)) {
                                 System.out.println("Integrity check failed, discard file...");
+                                currentState = DHState.INITIAL;
+                                continue;
+                            }
+
+                            // check nonce
+                            if (CryptoManager.getInstance().checkNonce(nonce))
+                                CryptoManager.getInstance().addNonce(nonce);
+                            else {
+                                System.out.println("Reused nonce, discard file...");
+                                currentState = DHState.INITIAL;
                                 continue;
                             }
 
                             fos.write(finalData);
                             fos.close();
                             System.out.println(TAG + KeyUtil.byteArrayToHex(decryptData));
+
+                            // generate new DH Key
+
+                            if (role.equals("server")) {
+                                // regenerate DH key
+                                currentState = DHState.INITIAL;
+                                KeyGenerator keyGenerator = new KeyGenerator();
+                                keyGenerator.generateKeyPair();
+                                KeyPair keyPair = keyGenerator.getKeyPair();
+                                KeyManager.getInstance().setKeyPair(keyPair);
+                            }
+                            else {
+                                // regenerate DH key
+                                currentState = DHState.INITIAL;
+                                KeyGenerator keyGenerator = new KeyGenerator();
+                                keyGenerator.generateKeyPair();
+                                KeyPair keyPair = keyGenerator.getKeyPair();
+                                KeyManager.getInstance().setKeyPair(keyPair);
+
+                                // client initiate key negotiation
+                                System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
+                                write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
+                            }
                             break;
+
                     }
                     // Send the obtained bytes to the UI activity.
 //                    Message readMsg = handler.obtainMessage(

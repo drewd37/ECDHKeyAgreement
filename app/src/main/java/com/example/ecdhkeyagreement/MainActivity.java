@@ -16,6 +16,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.example.ecdhkeyagreement.communication.BluetoothManager;
+import com.example.ecdhkeyagreement.communication.DHState;
 import com.example.ecdhkeyagreement.crypto.CryptoManager;
 import com.example.ecdhkeyagreement.crypto.CryptoUtil;
 import com.example.ecdhkeyagreement.file.FileUtil;
@@ -88,7 +89,6 @@ public class MainActivity extends AppCompatActivity {
                     while(bluetoothManager.communicationThread == null) {}
 
                     // client starts the negotiation by sending the public key
-                    byte[] a = KeyManager.getInstance().getKeyPair().getPublic().getEncoded();
                     System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
                     bluetoothManager.sendBlueToothData(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
                 }
@@ -171,11 +171,21 @@ public class MainActivity extends AppCompatActivity {
                 mybytearray = KeyUtil.byteAppend(mybytearray, digest);
 
                 // encrypt
-                CryptoManager manager = new CryptoManager();
-                mybytearray = manager.encrypt(mybytearray);
+                mybytearray = CryptoManager.getInstance().encrypt(mybytearray);
 
                 System.out.println("Sending file... " + KeyUtil.byteArrayToHex(mybytearray));
                 bluetoothManager.sendBlueToothData(mybytearray);
+
+                // regenerate DH key
+                KeyGenerator keyGenerator = new KeyGenerator();
+                keyGenerator.generateKeyPair();
+                KeyPair keyPair = keyGenerator.getKeyPair();
+                KeyManager.getInstance().setKeyPair(keyPair);
+
+                // client initiate key negotiation
+                System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
+                bluetoothManager.communicationThread.currentState = DHState.INITIAL;
+                bluetoothManager.sendBlueToothData(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
             }
         });
     }

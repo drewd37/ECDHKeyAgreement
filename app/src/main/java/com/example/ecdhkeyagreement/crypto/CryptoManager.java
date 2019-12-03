@@ -4,14 +4,39 @@ import android.util.Base64;
 
 import com.example.ecdhkeyagreement.key.KeyManager;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 public class CryptoManager {
     private byte[] key;
+    private static CryptoManager instance;
+    private List<byte[]> nonceLib;
 
-    public CryptoManager() {
+    private CryptoManager() {
+        nonceLib = new ArrayList<>();
+    }
+
+    public static CryptoManager getInstance() {
+        if (instance == null)
+            instance = new CryptoManager();
+        return instance;
+    }
+
+    public void addNonce(byte[] nonce) {
+        nonceLib.add(nonce);
+    }
+
+    public boolean checkNonce(byte[] nonce) {
+        for (byte[] n: nonceLib) {
+            if (Arrays.equals(nonce, n))
+                return false;
+        }
+        return true;
     }
 
     public byte[] encrypt(byte[] data) {
