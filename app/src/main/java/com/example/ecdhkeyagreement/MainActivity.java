@@ -141,6 +141,11 @@ public class MainActivity extends AppCompatActivity {
         sendFileButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (bluetoothManager.communicationThread.currentState != DHState.KEY_GENERATED) {
+                    Toast.makeText(MainActivity.this, "Keys not generated.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
                 System.out.println("FilePath = " + filePath);
                 if (filePath == null)
                     return;

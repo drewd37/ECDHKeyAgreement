@@ -5,7 +5,7 @@ package com.example.ecdhkeyagreement.communication;
 
 public class DHState {
     public static final int INITIAL = 0;
-    public static final int MESSAGE_WRITE = 1; // transfer normal messages
+    public static final int WAIT_FOR_OK = 1; // transfer normal messages
     public static final int MESSAGE_TOAST = 2;
     public static final int CLIENT_SEND_KEY = 3;
     public static final int SERVER_SEND_KEY = 4;

@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.example.ecdhkeyagreement.crypto.CryptoManager;
@@ -264,14 +266,34 @@ public class BluetoothManager {
 
         public void run() {
             mmBuffer = new byte[1024];
-            int numBytes; // bytes returned from read()
+
+            // set up a timer to check timeout after 10 seconds
+            Looper.prepare();
+            final Handler handler = new Handler();
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    // resend messages after xx ms, deal with message lost
+                    if (currentState == DHState.INITIAL) {
+                        if (role.equals("client"))
+                            write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
+                    }
+                    else if (currentState == DHState.WAIT_FOR_OK) {
+                        if (role.equals("server"))
+                            write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
+                    }
+                    else {
+                        // key generated
+                    }
+                }
+            }, 10000);
 
             // Keep listening to the InputStream until an exception occurs.
             while (true) {
                 try {
                     // Read from the InputStream.
-                    int len = mmInStream.read(mmBuffer);
                     System.out.println("Server starting reading incoming data");
+                    int len = mmInStream.read(mmBuffer);
 
                     switch (currentState) {
                         case DHState.INITIAL:
@@ -291,10 +313,9 @@ public class BluetoothManager {
                                 System.out.println("Secret DH key: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getDHKey()));
 
 
-                                // server send its public key to client
+                                // server send its public key to client, and waits for the OK response
                                 write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
-                                currentState = DHState.KEY_GENERATED;
-
+                                currentState = DHState.WAIT_FOR_OK;
                             }
                             else {
                                 // client receives the public key from server
@@ -308,9 +329,17 @@ public class BluetoothManager {
                                 KeyManager.getInstance().calculateDHKey(publicKey);
                                 System.out.println("Secret DH key: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getDHKey()));
 
-                                // finish
+                                // send ok to server
+                                write("OK".getBytes());
                                 currentState = DHState.KEY_GENERATED;
                             }
+                            break;
+
+                        case DHState.WAIT_FOR_OK:
+                            // server receives OK from client
+                            data = Arrays.copyOf(mmBuffer, len);
+                            if (Arrays.equals(data, "OK".getBytes()))
+                                currentState = DHState.KEY_GENERATED;
                             break;
 
                         case DHState.KEY_GENERATED:
