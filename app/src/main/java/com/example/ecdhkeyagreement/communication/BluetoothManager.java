@@ -11,6 +11,7 @@ import android.util.Log;
 
 import com.example.ecdhkeyagreement.crypto.CryptoManager;
 import com.example.ecdhkeyagreement.crypto.CryptoUtil;
+import com.example.ecdhkeyagreement.file.FileUtil;
 import com.example.ecdhkeyagreement.key.KeyGenerator;
 import com.example.ecdhkeyagreement.key.KeyManager;
 import com.example.ecdhkeyagreement.key.KeyUtil;
@@ -303,7 +304,7 @@ public class BluetoothManager {
                             if (role.equals("server")) {
                                 // server receives the public key from client
                                 PublicKey publicKey = byteArrayToPublicKey(data);
-                                if(publicKey == null)
+                                if (publicKey == null)
                                     continue;
 
                                 System.out.println("Received key from client: " + KeyUtil.byteArrayToHex(publicKey.getEncoded()));
@@ -316,11 +317,10 @@ public class BluetoothManager {
                                 // server send its public key to client, and waits for the OK response
                                 write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
                                 currentState = DHState.WAIT_FOR_OK;
-                            }
-                            else {
+                            } else {
                                 // client receives the public key from server
                                 PublicKey publicKey = byteArrayToPublicKey(data);
-                                if(publicKey == null)
+                                if (publicKey == null)
                                     continue;
 
                                 System.out.println("Received key from server: " + KeyUtil.byteArrayToHex(publicKey.getEncoded()));
@@ -344,7 +344,20 @@ public class BluetoothManager {
 
                         case DHState.KEY_GENERATED:
                             // receive file
-                            byte[] fileData = Arrays.copyOf(mmBuffer, len);
+                            byte[] fileData = new byte[1024];
+                            if (len >= 1024) {
+                                // large file
+                                int l;
+                                byte[] mybytearray = new byte[1024];
+                                DataInputStream dis = new DataInputStream(mmInStream);
+                                while ((l = dis.read(mybytearray)) != -1) {
+                                    KeyUtil.byteAppend(fileData, mybytearray);
+                                }
+                            }
+                            else {
+                                fileData = Arrays.copyOf(mmBuffer, len);
+                            }
+
                             File file = new File(Environment.getExternalStorageDirectory() + "/Download/","Received_file");
                             FileOutputStream fos = new FileOutputStream(file);
 
