@@ -182,15 +182,24 @@ public class MainActivity extends AppCompatActivity {
                 bluetoothManager.sendBlueToothData(mybytearray);
 
                 // regenerate DH key
+                bluetoothManager.communicationThread.currentState = DHState.INITIAL;
                 KeyGenerator keyGenerator = new KeyGenerator();
                 keyGenerator.generateKeyPair();
                 KeyPair keyPair = keyGenerator.getKeyPair();
                 KeyManager.getInstance().setKeyPair(keyPair);
 
+
                 // client initiate key negotiation
-                System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
-                bluetoothManager.communicationThread.currentState = DHState.INITIAL;
-                bluetoothManager.sendBlueToothData(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
+                if (bluetoothManager.getRole().equals("client")) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        return;
+                    }
+                    System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
+                    bluetoothManager.sendBlueToothData(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
+                }
             }
         });
     }

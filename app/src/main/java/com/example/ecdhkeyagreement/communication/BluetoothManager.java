@@ -292,7 +292,7 @@ public class BluetoothManager {
             while (true) {
                 try {
                     // Read from the InputStream.
-                    System.out.println("Server starting reading incoming data");
+                    System.out.println("Start reading incoming data");
                     int len = mmInStream.read(mmBuffer);
 
                     switch (currentState) {
@@ -350,6 +350,8 @@ public class BluetoothManager {
 
                             // decrypt
                             byte[] decryptData = CryptoManager.getInstance().decrpyt(fileData);
+                            if (decryptData == null)
+                                return;
 
                             // exclude nonce and digest
                             int finalDataLen = decryptData.length - 32 - 4;
@@ -398,6 +400,12 @@ public class BluetoothManager {
                                 KeyManager.getInstance().setKeyPair(keyPair);
 
                                 // client initiate key negotiation
+                                try {
+                                    Thread.sleep(1000);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                    return;
+                                }
                                 System.out.println("Sent to server: " + KeyUtil.byteArrayToHex(KeyManager.getInstance().getKeyPair().getPublic().getEncoded()));
                                 write(KeyManager.getInstance().getKeyPair().getPublic().getEncoded());
                             }
